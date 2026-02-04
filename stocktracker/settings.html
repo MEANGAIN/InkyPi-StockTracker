@@ -2,7 +2,7 @@
     <label for="tickers">Stock Tickers (comma-separated)</label>
     <input type="text" id="tickers" name="tickers" 
            placeholder="e.g., AAPL, MSFT, TSLA, 0P0001RU1X.L" 
-           value="{{ settings.get('tickers', '') }}" required>
+           required>
     <small>Enter stock ticker symbols separated by commas (e.g., AAPL, MSFT, or LSE: 0P0001RU1X.L)</small>
 </div>
 
@@ -10,7 +10,7 @@
     <label for="shares">Number of Shares (comma-separated)</label>
     <input type="text" id="shares" name="shares" 
            placeholder="e.g., 10, 5, 3, 152.2" 
-           value="{{ settings.get('shares', '') }}" required>
+           required>
     <small>Enter number of shares for each ticker in the same order (decimals allowed)</small>
 </div>
 
@@ -19,7 +19,7 @@
     <select id="period" name="period" required>
         <option value="">-- Select Period --</option>
         {% for value, label in period_options %}
-        <option value="{{ value }}" {% if settings.get('period') == value %}selected{% endif %}>
+        <option value="{{ value }}">
             {{ label }}
         </option>
         {% endfor %}
@@ -116,3 +116,30 @@
 }
 
 </style>
+
+<script>
+    /**
+     * Populate plugin settings form fields on page load when editing an existing plugin instance.
+     *
+     * - `loadPluginSettings` is a boolean flag indicating whether the form
+     *   is editing an existing plugin (true) or creating a new plugin (false).
+     * - `pluginSettings` is an object containing saved values for this plugin.
+     *
+     * This script automatically fills inputs with saved settings.
+     */
+    document.addEventListener('DOMContentLoaded', () => {
+        if (loadPluginSettings) {
+            // Populate text inputs
+            if (pluginSettings.tickers) {
+                document.getElementById('tickers').value = pluginSettings.tickers;
+            }
+            if (pluginSettings.shares) {
+                document.getElementById('shares').value = pluginSettings.shares;
+            }
+            // Populate select dropdown
+            if (pluginSettings.period) {
+                document.getElementById('period').value = pluginSettings.period;
+            }
+        }
+    });
+</script>
