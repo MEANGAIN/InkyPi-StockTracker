@@ -29,6 +29,10 @@ Dependencies:
 
 Compatible with:
     InkyPi plugin architecture
+
+Note:
+    Logging is used for debugging and error reporting. The InkyPi framework
+    is responsible for configuring the logging system.
 """
 
 from plugins.base_plugin.base_plugin import BasePlugin
@@ -139,7 +143,8 @@ class StockTracker(BasePlugin):
 			# Log detailed error information for debugging
 			logging.error(f"Failed to fetch data for {ticker}: {type(e).__name__}: {e}")
 			# Raise with simplified error message matching the format in the issue
-			raise RuntimeError(f"Error fetching {ticker}; {str(e)}")
+			# Preserve exception chain for better debugging
+			raise RuntimeError(f"Error fetching {ticker}; {str(e)}") from e
 
 	def _create_portfolio_chart(self, ax, stock_data):
 
