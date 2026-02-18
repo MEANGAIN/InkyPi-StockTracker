@@ -120,7 +120,7 @@ class StockTracker(BasePlugin):
 			except Exception as e:
 				# Catch any error from yfinance when accessing info
 				# This includes JSONDecodeError wrapped by yfinance, network errors, etc.
-				logging.error(f"Error fetching info for {ticker}: {type(e).__name__}: {e}")
+				logging.error(f"Error fetching info for {ticker}: {type(e).__name__}: {e}", exc_info=True)
 				info = {}
 
 			current_price = hist['Close'].iloc[-1]
@@ -141,7 +141,7 @@ class StockTracker(BasePlugin):
 			}
 		except Exception as e:
 			# Log detailed error information for debugging
-			logging.error(f"Failed to fetch data for {ticker}: {type(e).__name__}: {e}")
+			logging.error(f"Failed to fetch data for {ticker}: {type(e).__name__}: {e}", exc_info=True)
 			# Raise with simplified error message matching the format in the issue
 			# Preserve exception chain for better debugging
 			raise RuntimeError(f"Error fetching {ticker}; {str(e)}") from e
