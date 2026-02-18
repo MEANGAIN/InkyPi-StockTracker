@@ -40,11 +40,19 @@ from datetime import datetime, timedelta
 import numpy as np
 from PIL import Image
 import io
+import json
+import logging
 
 
 class StockTracker(BasePlugin):
 
 	"""Stock portfolio tracker plugin for InkyPi"""
+
+	# Constants for improved code readability
+	CARD_HEIGHT_RATIO = 0.22
+	CARD_WIDTH_RATIO = 0.42
+	CHART_MARGIN_RATIO = 0.15
+	DEFAULT_TICKER_NAME_MAX_LENGTH = 25
 
 	def generate_image(self, settings, device_config):
 
@@ -88,31 +96,52 @@ class StockTracker(BasePlugin):
 
 	def _fetch_stock_data(self, ticker, shares, period):
 
-		"""Fetch stock data using yfinance"""
+		"""Fetch stock data using yfinance with proper error handling"""
 
-		stock = yf.Ticker(ticker)
-		hist = stock.history(period=period)
-		info = stock.info
+		try:
+			stock = yf.Ticker(ticker)
+			hist = stock.history(period=period)
+			
+			if hist.empty:
+				logging.warning(f"No historical data available for ticker: {ticker}")
+				return None
 
-		if hist.empty:
-			return None
+			# Safely access stock info with explicit error handling
+			try:
+				info = stock.info
+				# Validate that info is a dictionary and not empty
+				if not isinstance(info, dict):
+					logging.warning(f"Invalid info response for {ticker}: expected dict, got {type(info)}")
+					info = {}
+			except json.JSONDecodeError as e:
+				logging.error(f"JSON parsing error for {ticker} info: {e}. Response may be empty or malformed.")
+				info = {}
+			except Exception as e:
+				logging.error(f"Unexpected error fetching info for {ticker}: {type(e).__name__}: {e}")
+				info = {}
 
-		current_price = hist['Close'].iloc[-1]
-		prev_price = hist['Close'].iloc[0]
-		change = current_price - prev_price
-		change_percent = (change / prev_price) * 100 if prev_price != 0 else 0
+			current_price = hist['Close'].iloc[-1]
+			prev_price = hist['Close'].iloc[0]
+			change = current_price - prev_price
+			change_percent = (change / prev_price) * 100 if prev_price != 0 else 0
 
-		return {
-			'symbol': ticker,
-			'name': info.get('shortName', ticker),
-			'price': current_price,
-			'change': change,
-			'change_percent': change_percent,
-			'shares': shares,
-			'total_value': current_price * shares,
-			'total_change': change * shares,
-			'history': hist
-		}
+			return {
+				'symbol': ticker,
+				'name': info.get('shortName', ticker),
+				'price': current_price,
+				'change': change,
+				'change_percent': change_percent,
+				'shares': shares,
+				'total_value': current_price * shares,
+				'total_change': change * shares,
+				'history': hist
+			}
+		except Exception as e:
+			# Provide detailed error information for debugging
+			error_type = type(e).__name__
+			error_msg = str(e)
+			logging.error(f"Failed to fetch data for {ticker}: {error_type}: {error_msg}")
+			raise RuntimeError(f"Error fetching {ticker}: {error_type}: {error_msg}")
 
 	def _create_portfolio_chart(self, ax, stock_data):
 
@@ -165,7 +194,7 @@ class StockTracker(BasePlugin):
 		value_min = portfolio_values.min()
 		value_max = portfolio_values.max()
 		value_range = value_max - value_min
-		margin = value_range * 0.15
+		margin = value_range * self.CHART_MARGIN_RATIO
 		ax.set_ylim(value_min - margin, value_max + margin)
 
 	def _create_portfolio_summary(self, ax, stock_data):
@@ -254,8 +283,8 @@ class StockTracker(BasePlugin):
 				row = idx - 2
 
 			# Card position with spacing
-			card_height = 0.22
-			card_width = 0.42
+			card_height = self.CARD_HEIGHT_RATIO
+			card_width = self.CARD_WIDTH_RATIO
 			left = 0.05 + col * 0.48
 			bottom = 0.70 - row * 0.26
 
@@ -268,7 +297,7 @@ class StockTracker(BasePlugin):
 			ax_card.text(0.05, 0.88, data['symbol'],
 						fontsize=18, fontweight='bold', color='white',
 						transform=ax_card.transAxes)
-			ax_card.text(0.05, 0.68, data['name'][:25],
+			ax_card.text(0.05, 0.68, data['name'][:self.DEFAULT_TICKER_NAME_MAX_LENGTH],
 						fontsize=9, color='#94a3b8',
 						transform=ax_card.transAxes)
 
@@ -318,7 +347,7 @@ class StockTracker(BasePlugin):
 			price_min = prices.min()
 			price_max = prices.max()
 			price_range = price_max - price_min
-			margin = price_range * 0.15
+			margin = price_range * self.CHART_MARGIN_RATIO
 			ax_chart.set_ylim(price_min - margin, price_max + margin)
 
 			ax_chart.yaxis.set_major_locator(plt.MaxNLocator(5))
