@@ -142,9 +142,8 @@ class StockTracker(BasePlugin):
 		except Exception as e:
 			# Log detailed error information for debugging
 			logging.error(f"Failed to fetch data for {ticker}: {type(e).__name__}: {e}", exc_info=True)
-			# Raise with simplified error message matching the format in the issue
-			# Preserve exception chain for better debugging
-			raise RuntimeError(f"Error fetching {ticker}; {str(e)}") from e
+			# Re-raise the original exception so that callers can handle or wrap it as needed
+			raise
 
 	def _create_portfolio_chart(self, ax, stock_data):
 
