@@ -29,6 +29,10 @@ Dependencies:
 
 Compatible with:
     InkyPi plugin architecture
+
+Note:
+    Logging is used for debugging and error reporting. The InkyPi framework
+    is responsible for configuring the logging system.
 """
 
 from plugins.base_plugin.base_plugin import BasePlugin
@@ -40,11 +44,18 @@ from datetime import datetime, timedelta
 import numpy as np
 from PIL import Image
 import io
+import logging
 
 
 class StockTracker(BasePlugin):
 
 	"""Stock portfolio tracker plugin for InkyPi"""
+
+	# Constants for improved code readability
+	CARD_HEIGHT_RATIO = 0.22
+	CARD_WIDTH_RATIO = 0.42
+	CHART_MARGIN_RATIO = 0.15
+	DEFAULT_TICKER_NAME_MAX_LENGTH = 25
 
 	def generate_image(self, settings, device_config):
 
@@ -88,31 +99,51 @@ class StockTracker(BasePlugin):
 
 	def _fetch_stock_data(self, ticker, shares, period):
 
-		"""Fetch stock data using yfinance"""
+		"""Fetch stock data using yfinance with proper error handling"""
 
-		stock = yf.Ticker(ticker)
-		hist = stock.history(period=period)
-		info = stock.info
+		try:
+			stock = yf.Ticker(ticker)
+			hist = stock.history(period=period)
+			
+			if hist.empty:
+				logging.warning(f"No historical data available for ticker: {ticker}")
+				return None
 
-		if hist.empty:
-			return None
+			# Safely access stock info with explicit error handling
+			# yfinance may fail when fetching info due to network issues or invalid responses
+			try:
+				info = stock.info
+				# Validate that info is a dictionary
+				if not isinstance(info, dict):
+					logging.warning(f"Invalid info response for {ticker}: expected dict, got {type(info)}")
+					info = {}
+			except Exception as e:
+				# Catch any error from yfinance when accessing info
+				# This includes JSONDecodeError wrapped by yfinance, network errors, etc.
+				logging.error(f"Error fetching info for {ticker}: {type(e).__name__}: {e}", exc_info=True)
+				info = {}
 
-		current_price = hist['Close'].iloc[-1]
-		prev_price = hist['Close'].iloc[0]
-		change = current_price - prev_price
-		change_percent = (change / prev_price) * 100 if prev_price != 0 else 0
+			current_price = hist['Close'].iloc[-1]
+			prev_price = hist['Close'].iloc[0]
+			change = current_price - prev_price
+			change_percent = (change / prev_price) * 100 if prev_price != 0 else 0
 
-		return {
-			'symbol': ticker,
-			'name': info.get('shortName', ticker),
-			'price': current_price,
-			'change': change,
-			'change_percent': change_percent,
-			'shares': shares,
-			'total_value': current_price * shares,
-			'total_change': change * shares,
-			'history': hist
-		}
+			return {
+				'symbol': ticker,
+				'name': info.get('shortName', ticker),
+				'price': current_price,
+				'change': change,
+				'change_percent': change_percent,
+				'shares': shares,
+				'total_value': current_price * shares,
+				'total_change': change * shares,
+				'history': hist
+			}
+		except Exception as e:
+			# Log detailed error information for debugging
+			logging.error(f"Failed to fetch data for {ticker}: {type(e).__name__}: {e}", exc_info=True)
+			# Re-raise the original exception so that callers can handle or wrap it as needed
+			raise
 
 	def _create_portfolio_chart(self, ax, stock_data):
 
@@ -165,7 +196,7 @@ class StockTracker(BasePlugin):
 		value_min = portfolio_values.min()
 		value_max = portfolio_values.max()
 		value_range = value_max - value_min
-		margin = value_range * 0.15
+		margin = value_range * self.CHART_MARGIN_RATIO
 		ax.set_ylim(value_min - margin, value_max + margin)
 
 	def _create_portfolio_summary(self, ax, stock_data):
@@ -254,10 +285,14 @@ class StockTracker(BasePlugin):
 				row = idx - 2
 
 			# Card position with spacing
-			card_height = 0.22
-			card_width = 0.42
-			left = 0.05 + col * 0.48
-			bottom = 0.70 - row * 0.26
+			card_height = self.CARD_HEIGHT_RATIO
+			card_width = self.CARD_WIDTH_RATIO
+			CARD_LEFT_MARGIN = 0.05
+			CARD_COLUMN_SPACING = 0.48
+			CARD_TOP_POSITION = 0.70
+			CARD_ROW_SPACING = 0.26
+			left = CARD_LEFT_MARGIN + col * CARD_COLUMN_SPACING
+			bottom = CARD_TOP_POSITION - row * CARD_ROW_SPACING
 
 			# Stock info card
 			ax_card = fig.add_axes([left, bottom, card_width, card_height * 0.35])
@@ -268,7 +303,7 @@ class StockTracker(BasePlugin):
 			ax_card.text(0.05, 0.88, data['symbol'],
 						fontsize=18, fontweight='bold', color='white',
 						transform=ax_card.transAxes)
-			ax_card.text(0.05, 0.68, data['name'][:25],
+			ax_card.text(0.05, 0.68, data['name'][:self.DEFAULT_TICKER_NAME_MAX_LENGTH],
 						fontsize=9, color='#94a3b8',
 						transform=ax_card.transAxes)
 
@@ -318,7 +353,7 @@ class StockTracker(BasePlugin):
 			price_min = prices.min()
 			price_max = prices.max()
 			price_range = price_max - price_min
-			margin = price_range * 0.15
+			margin = price_range * self.CHART_MARGIN_RATIO
 			ax_chart.set_ylim(price_min - margin, price_max + margin)
 
 			ax_chart.yaxis.set_major_locator(plt.MaxNLocator(5))
