@@ -113,7 +113,7 @@ class StockTracker(BasePlugin):
 			# yfinance may fail when fetching info due to network issues or invalid responses
 			try:
 				info = stock.info
-				# Validate that info is a dictionary and not empty
+				# Validate that info is a dictionary
 				if not isinstance(info, dict):
 					logging.warning(f"Invalid info response for {ticker}: expected dict, got {type(info)}")
 					info = {}
